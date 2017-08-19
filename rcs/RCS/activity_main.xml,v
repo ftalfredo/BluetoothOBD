@@ -1,0 +1,165 @@
+head	1.4;
+access;
+symbols;
+locks
+	jalfredo:1.4; strict;
+comment	@# @;
+
+
+1.4
+date	2017.07.24.16.32.08;	author jalfredo;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2017.07.21.22.52.30;	author jalfredo;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2017.06.29.22.29.30;	author jalfredo;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2017.06.29.21.40.50;	author jalfredo;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.4
+log
+@*** empty log message ***
+@
+text
+@<?xml version="1.0" encoding="utf-8"?>
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@@+id/activity_main"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:weightSum="1">
+
+
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal" >
+        <TextView
+            android:id="@@+id/vinTitle"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:gravity="right"
+            android:text="VIN"
+            tools:text="VIN" />
+        <TextView
+            android:id="@@+id/vinVal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:textSize="18sp" />
+    </LinearLayout>
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal" >
+        <TextView
+            android:id="@@+id/rpmTitle"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:gravity="right"
+            android:text="RPM"
+            tools:text="RPM" />
+        <TextView
+            android:id="@@+id/rpmVal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:textSize="18sp" />
+    </LinearLayout>
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        android:orientation="horizontal" >
+        <TextView
+            android:id="@@+id/spdTitle"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:gravity="right"
+            android:text="SPEED"
+            tools:text="SPEED" />
+        <TextView
+            android:id="@@+id/spdVal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="10dp"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@@+id/msgView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</LinearLayout>
+
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d78 1
+a78 1
+    </LinearLayout>
+a79 1
+</android.support.constraint.ConstraintLayout>
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d2 71
+a72 6
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.jalfredo.bluetoothobd.MainActivity">
+d77 2
+a78 5
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d10 1
+a12 1
+        android:text="Hello World!"
+@

@@ -1,0 +1,707 @@
+head	1.11;
+access;
+symbols;
+locks
+	jalfredo:1.11; strict;
+comment	@# @;
+
+
+1.11
+date	2017.08.18.23.08.16;	author jalfredo;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2017.08.18.23.05.02;	author jalfredo;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2017.08.18.22.31.58;	author jalfredo;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2017.08.18.22.25.32;	author jalfredo;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2017.07.24.16.32.08;	author jalfredo;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2017.07.21.22.52.30;	author jalfredo;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2017.07.21.14.31.26;	author jalfredo;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2017.06.30.21.29.27;	author jalfredo;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2017.06.30.21.17.13;	author jalfredo;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2017.06.29.22.29.30;	author jalfredo;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2017.06.29.21.40.12;	author jalfredo;	state Exp;
+branches;
+next	;
+
+
+desc
+@@
+
+
+1.11
+log
+@*** empty log message ***
+@
+text
+@package com.example.jalfredo.bluetoothobd;
+
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.Intent;
+import android.support.v7.app.AppCompatActivity;
+import android.os.Bundle;
+import android.bluetooth.BluetoothAdapter;
+import android.util.Log;
+import android.widget.TextView;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Method;
+import java.util.Set;
+import java.util.UUID;
+
+public class MainActivity extends AppCompatActivity {
+
+    private BluetoothAdapter mBluetoothAdapter;
+    private BluetoothDevice obdDevice = null;
+    private static final UUID obdUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private boolean btConnected = false;
+    public String TAG = "ALFREDO";
+    public boolean streaming = true;
+    TextView msgView;
+    TextView vinVal;
+    TextView rpmVal;
+    TextView spdVal;
+    int rpm;
+    int spd;
+    byte[] dbuf;
+    byte[] vinBuf;
+
+
+    private final static int REQUEST_ENABLE_BT = 1;
+
+
+    @@Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        msgView = (TextView)findViewById(R.id.msgView);
+        vinVal  = (TextView)findViewById(R.id.vinVal);
+        rpmVal  = (TextView)findViewById(R.id.rpmVal);
+        spdVal  = (TextView)findViewById(R.id.spdVal);
+
+
+        dbuf = new byte[64];
+        vinBuf = new byte[32];
+
+
+        mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+
+        if (mBluetoothAdapter == null) {
+            msgView.append("\nBluetooth not available");
+            Log.d(TAG,"MainActivity.onCreate Bluetooth not available");
+        }
+        else {
+            if (!mBluetoothAdapter.isEnabled()) {
+                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+            }
+            Set<BluetoothDevice> pairedDevices = mBluetoothAdapter.getBondedDevices();
+            if (pairedDevices.size() > 0) {
+                // There are paired devices. Get the name and address of each paired device.
+                for (BluetoothDevice device : pairedDevices) {
+                    String deviceName = device.getName();
+                    String deviceHardwareAddress = device.getAddress(); // MAC address
+                    msgView.append("\nBluetooth paired device "+deviceHardwareAddress+" "+deviceName);
+                    if (deviceName.startsWith("OBDLink")) obdDevice = device;
+                }
+            }
+        }
+        if (obdDevice != null) {
+            ConnectThread obdThread = new ConnectThread(obdDevice);
+            obdThread.start();
+        }
+    }
+
+    private class ConnectThread extends Thread {
+        private BluetoothSocket mmSocket;
+        private BluetoothDevice mmDevice;
+        private InputStream mmInStream;
+        private OutputStream mmOutStream;
+        //private byte[] mmBuffer; // mmBuffer store for the stream
+
+
+
+        public ConnectThread(BluetoothDevice dev) {
+            BluetoothSocket sock = null;
+            BluetoothSocket sockFallback = null;
+
+            Log.d(TAG, "Starting Bluetooth connection..");
+            try {
+                sock = dev.createRfcommSocketToServiceRecord(obdUUID);
+                sock.connect();
+            } catch (Exception e1) {
+                Log.e(TAG, "There was an error while establishing Bluetooth connection. Falling back..", e1);
+                Class<?> clazz = sock.getRemoteDevice().getClass();
+                Class<?>[] paramTypes = new Class<?>[]{Integer.TYPE};
+                try {
+                    Method m = clazz.getMethod("createRfcommSocket", paramTypes);
+                    Object[] params = new Object[]{Integer.valueOf(1)};
+                    sockFallback = (BluetoothSocket) m.invoke(sock.getRemoteDevice(), params);
+                    sockFallback.connect();
+                    sock = sockFallback;
+                } catch (Exception e2) {
+                    Log.e(TAG, "Couldn't fallback while establishing Bluetooth connection.", e2);
+                    //throw new IOException(e2.getMessage());
+                }
+            }
+            mmSocket = sock;
+            btConnected = true;
+
+            msgView.post(new Runnable() {
+                 public void run() {
+                     msgView.append("\nConnectThread::ConnectThread BluetoothSocket created");
+                     msgView.append("\nBluetooth connected to device ");
+                  }
+            });
+            Log.d(TAG,"ConnectThread::ConnectThread BluetoothSocket created");
+        }
+
+        public void run() {
+            final byte[] vinCmd = "0902\r".getBytes();
+            final byte[] ate0 = "ATE0\r".getBytes();
+            final byte[] ats0 = "ATS0\r".getBytes();
+            final byte[] rpmCmd = "010C\r".getBytes();
+            final byte[] spdCmd = "010D\r".getBytes();
+
+            setupStreams();
+
+            writeELM(ate0);
+            writeELM(ats0);
+            //vinBuf = writeELM(vinCmd);
+
+            msgView.post(new Runnable() {
+                public void run() {
+                    msgView.append("\nConnectThread.run START streaming");
+                    msgView.append("\nVIN="+vinBuf.toString());
+                }
+            });
+            while (streaming){
+                rpm = hex2val(0x0c,writeELM(rpmCmd));
+                spd = hex2val(0x0d,writeELM(spdCmd));
+
+                msgView.post(new Runnable() {
+                    public void run() {
+                        //msgView.append("\nrpm:"+rpm+" spd:"+spd);
+                        rpmVal.setText(String.valueOf(rpm));
+                        spdVal.setText(String.valueOf(spd));
+                    }
+                });
+            }
+            cancel();
+        }
+
+        public void setupStreams(){
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+            try {
+                tmpIn = mmSocket.getInputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating input stream", e);
+            }
+            try {
+                tmpOut = mmSocket.getOutputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating output stream", e);
+            }
+
+            mmInStream = tmpIn;
+            mmOutStream = tmpOut;
+
+            msgView.post(new Runnable() {
+                public void run() {
+                    msgView.append("\nConnectThread.setupStreams EoM");
+                }
+            });
+        }
+
+        byte[] writeELM(final byte[] cmd){
+            //int numBytes = 0;
+            byte nbyte;
+            int s;
+            int i = 0;
+            byte[] rbuf = new byte[64];
+            //byte[] dbuf = new byte[64];
+            dbuf[0] = 0x00;
+            boolean pbyte;
+            String ch;
+            byte[] b = new byte[2];
+
+
+            try {
+                mmOutStream.write(cmd);
+             } catch (IOException e) {
+                Log.e(TAG, "Error occurred when sending data", e);
+                return dbuf;
+            }
+            dbuf[0] = 0x00;
+            while (true) {
+                try {
+                    nbyte = (byte)(mmInStream.read());
+
+                    //pbyte = (nbyte > 0x1f && nbyte < 0x80) ? true :  false;
+                    //b[0] = nbyte;
+                    //if (pbyte) ch = new String(b);
+                    //else ch = new String(" ");
+                    //if (cmd[1] == '9') Log.d("ALFREDO","writeELM VIN nbyte="+nbyte+" "+ch);
+                    if (nbyte != -1) {
+                        rbuf[i] = nbyte;
+                        if (nbyte == 0x13) rbuf[i] = 0x00;
+                        if (nbyte == 0x3e){ /* > dec62*/
+                            s = 0;
+                            if (cmd[0] != 'A'){
+                                while (rbuf[s+4] != 0x0d){
+                                    dbuf[s] = rbuf[s+4];
+                                    s++;
+                                    if (s == 16) break;
+                                }
+                                dbuf[s] = 0x00;
+                                return dbuf;
+                            }
+                            break;
+                        }
+                        i++;
+                        if (i == 64) break;
+                    }
+                    else break;
+                } catch (IOException e) {
+                    Log.d(TAG, "Input stream was disconnected", e);
+                    break;
+                }
+            }
+            return dbuf;
+        }
+
+
+        int hex2val(int pid,byte[] str){
+            int val = -1;
+            String obdStr = new String(str);
+
+            try {
+                switch (pid) {
+                    case 0x0c:
+                        val = Integer.parseInt(obdStr.substring(0,4), 16);
+                        return (int) (val / 4);
+                    case 0x0d:
+                        val = Integer.parseInt(obdStr.substring(0,2), 16);
+                        return (int) val;
+                }
+                return val;
+            }
+            catch(NumberFormatException nfe){
+                Log.e("ALFRED", "parseInt NumberFormatException " +nfe.toString());
+                for (int i = 0;i <  obdStr.length(); i++) {
+                    Log.e("ALFRED",i + " obdStr:"+obdStr.charAt(i)+" "+ (int)obdStr.charAt(i));
+                }
+            }
+            return 0;
+        }
+
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                Log.e("ALFRED", "Could not close the client socket", e);
+            }
+        }
+    }
+}
+@
+
+
+1.10
+log
+@*** empty log message ***
+@
+text
+@d146 1
+a146 2
+                //writeELM(rpmCmd);
+                //rpm = hex2val(0x0c,writeELM(rpmCmd));
+a148 2
+
+
+d152 1
+a152 1
+                        //rpmVal.setText(String.valueOf(rpm));
+a153 3
+                        //String ss = new String(writeELM(spdCmd));
+                        Log.d("ALFREDO","spd="+spd);
+                        //spdVal.setText(ss);
+a156 1
+
+a244 1
+            Log.d("ALFREDO","hex2val pid="+pid+" byte="+str+" obdStr="+obdStr);
+a252 1
+                        Log.d("ALFREDO","hex2val 0x0d "+obdStr.substring(0,1)+" val="+val);
+a273 1
+
+@
+
+
+1.9
+log
+@*** empty log message ***
+@
+text
+@d148 1
+a148 1
+                //spd = hex2val(0x0d,writeELM(spdCmd));
+d156 4
+a159 4
+                        //spdVal.setText(String.valueOf(spd));
+                        String ss = new String(writeELM(spdCmd));
+                        Log.d("ALFREDO","spd="+ss);
+                        spdVal.setText(ss);
+d252 1
+d257 1
+a257 1
+                        val = Integer.parseInt(obdStr.substring(0,3), 16);
+d260 2
+a261 1
+                        val = Integer.parseInt(obdStr.substring(0,1), 16);
+@
+
+
+1.8
+log
+@*** empty log message ***
+@
+text
+@d137 1
+a137 1
+            vinBuf = writeELM(vinCmd);
+d215 5
+a219 5
+                    pbyte = (nbyte > 0x1f && nbyte < 0x80) ? true :  false;
+                    b[0] = nbyte;
+                    if (pbyte) ch = new String(b);
+                    else ch = new String(" ");
+                    if (cmd[1] == '9') Log.d("ALFREDO","writeELM VIN nbyte="+nbyte+" "+ch);
+@
+
+
+1.7
+log
+@*** empty log message ***
+@
+text
+@d30 1
+d47 1
+d128 4
+a131 8
+            byte[] ate0 = "ATE0\r".getBytes();
+            byte[] ats0 = "ATS0\r".getBytes();
+            byte[] rpmCmd = "010C\r".getBytes();
+            byte[] spdCmd = "010D\r".getBytes();
+
+
+            // Cancel discovery because it otherwise slows down the connection.
+            //mBluetoothAdapter.cancelDiscovery();
+d147 3
+a149 2
+                rpm = hex2val(0x0c,writeELM(rpmCmd));
+                //rpmVal.setText(String.valueOf(rpm));
+d155 5
+a159 1
+                        rpmVal.setText(String.valueOf(rpm));
+a161 2
+
+                //postSql(rpm,spd);
+a244 2
+
+            //return new String(dbuf);
+a252 2
+// see prg/java/MyFirstJavaProgram.java
+
+a272 2
+
+        // Closes the client socket and causes the thread to finish.
+@
+
+
+1.6
+log
+@*** empty log message ***
+@
+text
+@d28 1
+d33 1
+d43 3
+a45 2
+        msgView = (TextView) findViewById(R.id.msgView);
+        rpmVal = (TextView)findViewById(R.id.rpmVal);
+d49 1
+a111 5
+            //return sock;
+
+
+
+
+d125 1
+d139 2
+d144 1
+a152 2
+
+
+d218 1
+a218 1
+                    //Log.d("ALFREDO","writeELM nbyte="+nbyte+" "+ch);
+@
+
+
+1.5
+log
+@*** empty log message ***
+@
+text
+@d28 1
+d42 2
+d131 1
+a145 2
+                hex2val(0x0c,writeELM(rpmCmd));
+                /*
+d147 4
+a150 1
+                spd = hex2val(0x0d,writeELM(spdCmd));
+d154 2
+a155 1
+                        msgView.append("\nrpm:"+rpm+" spd:"+spd);
+d158 1
+a158 1
+                */
+d201 1
+a201 5
+            msgView.post(new Runnable() {
+                public void run() {
+                    msgView.append("\nConnectThread.writeELM BoM ");
+                }
+            });
+d217 1
+a217 1
+                    Log.d("ALFREDO","writeELM nbyte="+nbyte+" "+ch);
+a221 1
+                            Log.d("ALFREDO","writeELM > DETECTED");
+d243 1
+a243 5
+            msgView.post(new Runnable() {
+                public void run() {
+                    msgView.append("\nConnectThread.writeELM dbuf="+dbuf);
+                }
+            });
+d255 16
+a270 6
+            val = Integer.parseInt(obdStr, 16);
+            Log.d("ALFREDO","hex2val "+str.length+" "+str+" parsetInt="+val);
+
+            switch(pid){
+                case 0x0c: return (int)(val / 4);
+                case 0x0d: return (int)val;
+d272 1
+a272 1
+            return val;
+@
+
+
+1.4
+log
+@*** empty log message ***
+@
+text
+@d15 1
+d28 3
+d42 2
+d82 3
+a84 5
+        public ConnectThread(BluetoothDevice device) {
+            // Use a temporary object that is later assigned to mmSocket
+            // because mmSocket is final.
+            BluetoothSocket tmp = null;
+            mmDevice = device;
+d86 1
+d88 16
+a103 3
+                tmp = device.createRfcommSocketToServiceRecord(obdUUID);
+            } catch (IOException e) {
+                Log.e(TAG, "Socket's create() method failed", e);
+d105 7
+a111 1
+            mmSocket = tmp;
+d115 2
+a116 1
+                      msgView.append("\nConnectThread::ConnectThread BluetoothSocket created");
+d123 5
+a127 4
+            int rpm;
+            int spd;
+            byte[] rpmCmd = "010C".getBytes();
+            byte[] spdCmd = "010D".getBytes();
+d129 1
+a129 1
+            mBluetoothAdapter.cancelDiscovery();
+d131 1
+a131 26
+            try {
+                // Connect to the remote device through the socket. This call blocks
+                // until it succeeds or throws an exception.
+
+                msgView.post(new Runnable() {
+                    public void run() {
+                        msgView.append("\nConnectThread::run BluetoothSocket attempting to connect");
+                    }
+                });
+                Log.d(TAG,"ConnectThread::run BluetoothSocket attempting to connect");
+                mmSocket.connect();
+            } catch (final IOException connectException) {
+                msgView.post(new Runnable() {
+                    public void run() {
+                        msgView.append("\nConnectThread::run IOException on connect "+connectException.getMessage());
+                    }
+                });
+                Log.d(TAG,"ConnectThread::run IOException on connect");
+                try {
+                    mmSocket.close();
+                } catch (IOException closeException) {
+                    Log.e(TAG, "Could not close the client socket", closeException);
+                }
+                return;
+            }
+            btConnected = true;
+d133 2
+d137 1
+a137 1
+                    msgView.append("\nBluetooth connected to device "+ mmDevice.getAddress()+" "+mmDevice.getName());
+a139 4
+
+
+            setupStreams();
+cancel();
+d141 3
+d146 7
+a152 1
+                msgView.append("\nrpm:"+rpm+" spd:"+spd);
+d175 6
+d183 2
+a184 2
+        String writeELM(byte[] cmd){
+            int numBytes = 0;
+d189 11
+a199 1
+            byte[] dbuf = new byte[64];
+d204 1
+a204 1
+                return new String(" ");
+d210 6
+d219 2
+a220 1
+                        if (nbyte == 62){ /* > */
+d229 1
+a229 1
+                                return new String(dbuf);
+d242 7
+a248 1
+            return new String(dbuf);
+d252 1
+a252 1
+        int hex2val(int pid,String str){
+d254 3
+d258 2
+a259 1
+            val = Integer.parseInt(str, 16);
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d100 2
+d137 2
+a138 2
+    cancel();
+            /*
+d140 1
+d142 2
+a143 2
+                rpm = hex2val(0x0c,writeELM("010C"));
+                spd = hex2val(0x0d,writeELM("010D"));
+d147 1
+a147 1
+            */
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d4 1
+d12 3
+d16 1
+d21 7
+d36 1
+a36 1
+        TextView msgView = (TextView) findViewById(R.id.msgView);
+d42 2
+a43 2
+            msgView.append("Bluetooth not available");
+            Log.d("ALFREDO","MainActivity.onCreate Bluetooth not available");
+d56 150
+a205 1
+                    msgView.append("Bluetooth paired device "+deviceHardwareAddress+" "+deviceName);
+d208 24
+d234 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d3 2
+d7 5
+d15 5
+d24 24
+@
