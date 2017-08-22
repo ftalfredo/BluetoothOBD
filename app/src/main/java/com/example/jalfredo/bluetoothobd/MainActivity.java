@@ -31,7 +31,7 @@ public class MainActivity extends AppCompatActivity {
     int rpm;
     int spd;
     byte[] dbuf;
-    byte[] vinBuf;
+    String vinBuf;
 
 
     private final static int REQUEST_ENABLE_BT = 1;
@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         dbuf = new byte[64];
-        vinBuf = new byte[32];
+
 
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -124,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void run() {
-            final byte[] vinCmd = "0902\r".getBytes();
+            //final byte[] vinCmd = "0902\r".getBytes();
             final byte[] ate0 = "ATE0\r".getBytes();
             final byte[] ats0 = "ATS0\r".getBytes();
             final byte[] atl0 = "ATL0\r".getBytes();
@@ -136,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
 
             writeELM(ate0);
             writeELM(ats0);
-            vinBuf = writeELM(vinCmd);
+            vinBuf = readVIN();
 
             msgView.post(new Runnable() {
                 public void run() {
@@ -184,6 +184,61 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        String readVIN(){
+            final byte[] vinCmd = "0902\r".getBytes();
+            int[][] vInts = {{7,8},{9,10},{11,12},{16,17},{18,19},{20,21},{22,23},{24,25},{26,27},{28,29},{33,34},{35,36},{37,38},{39,40},{41,42},{43,44},{45,46}};
+            byte vbuf[] = new byte[64];
+            byte cbuf[] = new byte[4];
+            byte nbyte;
+            char[] cs = new char[17];
+            int i = 0;
+            int startFound = 0;
+
+            String s;
+            char c;
+
+            try {
+                mmOutStream.write(vinCmd);
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when sending data", e);
+                return new String("");
+            }
+            vbuf[0] = 0x00;
+            while (true) {
+                try {
+                    nbyte = (byte)(mmInStream.read());
+                    if (nbyte != -1) {
+                        if (startFound != 2) {
+                            if (nbyte == 0x30){
+                                startFound = 1;
+                                continue;
+                            }
+                            if (startFound == 1 && nbyte == 0x3a){
+                                startFound = 2;
+                            }
+                            else continue;
+                        }
+                        vbuf[i] = nbyte;
+
+                        if (nbyte == 0x3e) break; /* > dec62*/
+                        i++;
+                        if (i == 64) break;
+                    }
+                    else break;
+                } catch (IOException e) {
+                    Log.d(TAG, "Input stream was disconnected", e);
+                    break;
+                }
+            }
+            for (i=0;i<17;i++){
+                cbuf[0] = vbuf[vInts[i][0]];
+                cbuf[1] = vbuf[vInts[i][1]];
+                cbuf[2] = 0x0;
+                cs[i] =  (char)Integer.parseInt(new String(cbuf).substring(0,2), 16);
+            }
+            return new String(cs);
+        }
+
         byte[] writeELM(final byte[] cmd){
             byte nbyte;
             int s;
@@ -205,12 +260,6 @@ public class MainActivity extends AppCompatActivity {
             while (true) {
                 try {
                     nbyte = (byte)(mmInStream.read());
-
-                    //pbyte = (nbyte > 0x1f && nbyte < 0x80) ? true :  false;
-                    //b[0] = nbyte;
-                    //if (pbyte) ch = new String(b);
-                    //else ch = new String(" ");
-                    //if (cmd[1] == '9') Log.d("ALFREDO","writeELM VIN nbyte="+nbyte+" "+ch);
                     if (nbyte != -1) {
                         rbuf[i] = nbyte;
                         if (nbyte == 0x13) rbuf[i] = 0x00;

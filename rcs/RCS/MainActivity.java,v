@@ -1,10 +1,25 @@
-head	1.11;
+head	1.14;
 access;
 symbols;
 locks
-	jalfredo:1.11; strict;
+	jalfredo:1.14; strict;
 comment	@# @;
 
+
+1.14
+date	2017.08.22.00.35.26;	author jalfredo;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2017.08.21.16.15.24;	author jalfredo;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2017.08.19.01.39.13;	author jalfredo;	state Exp;
+branches;
+next	1.11;
 
 1.11
 date	2017.08.18.23.08.16;	author jalfredo;	state Exp;
@@ -66,9 +81,9 @@ desc
 @@
 
 
-1.11
+1.14
 log
-@*** empty log message ***
+@got VIN working
 @
 text
 @package com.example.jalfredo.bluetoothobd;
@@ -104,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
     int rpm;
     int spd;
     byte[] dbuf;
-    byte[] vinBuf;
+    String vinBuf;
 
 
     private final static int REQUEST_ENABLE_BT = 1;
@@ -121,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
 
 
         dbuf = new byte[64];
-        vinBuf = new byte[32];
+
 
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -197,9 +212,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void run() {
-            final byte[] vinCmd = "0902\r".getBytes();
+            //final byte[] vinCmd = "0902\r".getBytes();
             final byte[] ate0 = "ATE0\r".getBytes();
             final byte[] ats0 = "ATS0\r".getBytes();
+            final byte[] atl0 = "ATL0\r".getBytes();
+            final byte[] atl1 = "ATL1\r".getBytes();
             final byte[] rpmCmd = "010C\r".getBytes();
             final byte[] spdCmd = "010D\r".getBytes();
 
@@ -207,12 +224,13 @@ public class MainActivity extends AppCompatActivity {
 
             writeELM(ate0);
             writeELM(ats0);
-            //vinBuf = writeELM(vinCmd);
+            vinBuf = readVIN();
 
             msgView.post(new Runnable() {
                 public void run() {
                     msgView.append("\nConnectThread.run START streaming");
                     msgView.append("\nVIN="+vinBuf.toString());
+                    vinVal.setText(new String(vinBuf));
                 }
             });
             while (streaming){
@@ -254,13 +272,73 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        String readVIN(){
+            final byte[] vinCmd = "0902\r".getBytes();
+            int[][] vInts = {{7,8},{9,10},{11,12},{16,17},{18,19},{20,21},{22,23},{24,25},{26,27},{28,29},{33,34},{35,36},{37,38},{39,40},{41,42},{43,44},{45,46}};
+            byte vbuf[] = new byte[64];
+            byte cbuf[] = new byte[4];
+            byte nbyte;
+            char[] cs = new char[17];
+            int i = 0;
+            int foundStart = 0;
+
+            String s;
+            char c;
+
+            try {
+                mmOutStream.write(vinCmd);
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when sending data", e);
+                return new String("");
+            }
+            vbuf[0] = 0x00;
+            while (true) {
+                try {
+                    nbyte = (byte)(mmInStream.read());
+                    if (nbyte != -1) {
+                        Log.d("ALFREDO readVIN","READ "+i+" foundStart="+foundStart+" "+String.valueOf(nbyte));
+                        if (foundStart != 2) {
+                            if (nbyte == 0x30){
+                                foundStart = 1;
+                                continue;
+                            }
+                            if (foundStart == 1 && nbyte == 0x3a){
+                                foundStart = 2;
+                            }
+                            else continue;
+                        }
+                        vbuf[i] = nbyte;
+
+
+                        if (nbyte == 0x3e) break; /* > dec62*/
+                        i++;
+                        if (i == 64) break;
+                    }
+                    else break;
+                } catch (IOException e) {
+                    Log.d(TAG, "Input stream was disconnected", e);
+                    break;
+                }
+            }
+            for (i=0;i<17;i++){
+                cbuf[0] = vbuf[vInts[i][0]];
+                cbuf[1] = vbuf[vInts[i][1]];
+                cbuf[2] = 0x0;
+
+                //s = new String(cbuf);
+                //c = (char)Integer.parseInt(new String(cbuf).substring(0,2), 16);
+                Log.d("ALFREDO readVIN","PARSE "+i+" "+String.valueOf(cbuf[0])+" "+String.valueOf(cbuf[1]));
+
+                cs[i] =  (char)Integer.parseInt(new String(cbuf).substring(0,2), 16);
+            }
+            return new String(cs);
+        }
+
         byte[] writeELM(final byte[] cmd){
-            //int numBytes = 0;
             byte nbyte;
             int s;
             int i = 0;
             byte[] rbuf = new byte[64];
-            //byte[] dbuf = new byte[64];
             dbuf[0] = 0x00;
             boolean pbyte;
             String ch;
@@ -277,12 +355,6 @@ public class MainActivity extends AppCompatActivity {
             while (true) {
                 try {
                     nbyte = (byte)(mmInStream.read());
-
-                    //pbyte = (nbyte > 0x1f && nbyte < 0x80) ? true :  false;
-                    //b[0] = nbyte;
-                    //if (pbyte) ch = new String(b);
-                    //else ch = new String(" ");
-                    //if (cmd[1] == '9') Log.d("ALFREDO","writeELM VIN nbyte="+nbyte+" "+ch);
                     if (nbyte != -1) {
                         rbuf[i] = nbyte;
                         if (nbyte == 0x13) rbuf[i] = 0x00;
@@ -345,6 +417,59 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
+@
+
+
+1.13
+log
+@*** empty log message ***
+@
+text
+@d34 1
+a34 1
+    byte[] vinBuf;
+d51 1
+a51 1
+        vinBuf = new byte[32];
+d127 1
+a127 1
+            final byte[] vinCmd = "0902\r".getBytes();
+d139 1
+a139 1
+            vinBuf = writeELM(vinCmd);
+d185 62
+@
+
+
+1.12
+log
+@*** empty log message ***
+@
+text
+@a207 6
+
+                    //pbyte = (nbyte > 0x1f && nbyte < 0x80) ? true :  false;
+                    //b[0] = nbyte;
+                    //if (pbyte) ch = new String(b);
+                    //else ch = new String(" ");
+                    //if (cmd[1] == '9') Log.d("ALFREDO","writeELM VIN nbyte="+nbyte+" "+ch);
+@
+
+
+1.11
+log
+@*** empty log message ***
+@
+text
+@d130 2
+d139 1
+a139 1
+            //vinBuf = writeELM(vinCmd);
+d145 1
+a187 1
+            //int numBytes = 0;
+a191 1
+            //byte[] dbuf = new byte[64];
 @
 
 
